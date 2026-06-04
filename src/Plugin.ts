@@ -8,6 +8,7 @@ import type { PluginTypes } from './PluginTypes.ts';
 
 import { PluginSettingsManager } from './PluginSettingsManager.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
+import { applyStrip, testMatch } from './utils.ts';
 
 interface RuleMatch {
   cleanValue: string;
@@ -134,19 +135,16 @@ function pathBasenameNoExt(filePath: string): string {
 
 function applyRules(basename: string, rules: readonly FilenameRule[]): RuleMatch {
   for (const rule of rules) {
-    if (!rule.stripPattern) continue;
-    try {
-      if (rule.matchPattern && !new RegExp(rule.matchPattern).test(basename)) continue;
-      const stripped = basename.replace(new RegExp(rule.stripPattern), '').trim();
-      if (stripped.length > 0) {
-        return {
-          cleanValue: stripped,
-          targetField: rule.targetField || 'aliases',
-          fieldType: rule.fieldType
-        };
-      }
-    } catch {
-      // invalid regex — skip this rule
+    const hasPattern = rule.mode === 'simple' ? !!rule.stripFormat : !!rule.stripPattern;
+    if (!hasPattern) continue;
+    if (!testMatch(basename, rule.mode === 'advanced' ? rule.matchPattern : '')) continue;
+    const stripped = applyStrip(basename, rule.mode, rule.stripFormat, rule.stripPattern);
+    if (stripped !== basename) {
+      return {
+        cleanValue: stripped,
+        targetField: rule.targetField || 'aliases',
+        fieldType: rule.fieldType
+      };
     }
   }
   return { cleanValue: basename, targetField: 'aliases', fieldType: 'array' };

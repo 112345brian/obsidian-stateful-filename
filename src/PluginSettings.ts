@@ -1,6 +1,8 @@
 export interface FilenameRule {
-  matchPattern: string;
-  stripPattern: string;
+  mode: 'simple' | 'advanced';
+  stripFormat: string;   // moment.js format (simple mode)
+  matchPattern: string;  // regex to test filename (advanced mode)
+  stripPattern: string;  // regex to remove from filename (advanced mode)
   targetField: string;
   fieldType: 'array' | 'value';
 }
@@ -8,8 +10,10 @@ export interface FilenameRule {
 export class PluginSettings {
   public rules: FilenameRule[] = [
     {
+      mode: 'simple',
+      stripFormat: 'YYYY-MM-DD',
       matchPattern: '',
-      stripPattern: '^\\d{4}-\\d{2}-\\d{2}\\s*',
+      stripPattern: '',
       targetField: 'aliases',
       fieldType: 'array'
     }
