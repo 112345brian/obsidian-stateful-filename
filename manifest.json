@@ -1,9 +1,9 @@
 {
   "author": "112345brian",
   "authorUrl": "https://github.com/112345brian/",
-  "description": "Keeps a clean alias in sync with note filenames by stripping a configurable regex pattern.",
-  "id": "stateful-alias",
+  "description": "Derives a clean value from the filename using configurable regex rules and keeps it in sync in frontmatter.",
+  "id": "stateful-filename",
   "isDesktopOnly": false,
-  "name": "Stateful Alias",
+  "name": "Stateful Filename",
   "version": "0.0.1"
 }

@@ -3,11 +3,17 @@ import type { TAbstractFile, TFile } from 'obsidian';
 import { debounce } from 'obsidian';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-base';
 
+import type { FilenameRule } from './PluginSettings.ts';
 import type { PluginTypes } from './PluginTypes.ts';
-import type { AliasRule } from './PluginSettings.ts';
 
 import { PluginSettingsManager } from './PluginSettingsManager.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
+
+interface RuleMatch {
+  cleanValue: string;
+  targetField: string;
+  fieldType: 'array' | 'value';
+}
 
 export class Plugin extends PluginBase<PluginTypes> {
   protected override createSettingsManager(): PluginSettingsManager {
@@ -34,7 +40,7 @@ export class Plugin extends PluginBase<PluginTypes> {
     );
 
     const debouncedSave = debounce(
-      (file: TFile) => { void this.ensureAlias(file); },
+      (file: TFile) => { void this.ensureField(file); },
       2000,
       true
     );
@@ -52,30 +58,43 @@ export class Plugin extends PluginBase<PluginTypes> {
     if (!this.settings.triggerOnRename || !isMdFile(file)) return;
 
     const rules = this.settings.rules;
-    const oldBasename = pathBasenameNoExt(oldPath);
-    const newBasename = (file as TFile).basename;
-    const oldCleanTitle = applyRules(oldBasename, rules);
-    const newCleanTitle = applyRules(newBasename, rules);
+    const oldMatch = applyRules(pathBasenameNoExt(oldPath), rules);
+    const newMatch = applyRules((file as TFile).basename, rules);
 
-    if (oldCleanTitle === newCleanTitle) return;
+    if (oldMatch.cleanValue === newMatch.cleanValue && oldMatch.targetField === newMatch.targetField) return;
 
     await this.app.fileManager.processFrontMatter(file as TFile, (fm: unknown) => {
-      upsertAlias(fm as Record<string, unknown>, oldCleanTitle, newCleanTitle);
+      const rec = fm as Record<string, unknown>;
+      if (newMatch.fieldType === 'array') {
+        upsertArrayField(rec, newMatch.targetField, oldMatch.cleanValue, newMatch.cleanValue);
+      } else {
+        rec[newMatch.targetField] = newMatch.cleanValue;
+      }
     });
   }
 
   private async handleFileOpen(file: TFile | null): Promise<void> {
     if (!this.settings.triggerOnOpen || !file || file.extension !== 'md') return;
-    await this.ensureAlias(file);
+    await this.ensureField(file);
   }
 
-  private async ensureAlias(file: TFile): Promise<void> {
-    const cleanTitle = applyRules(file.basename, this.settings.rules);
-    const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.['aliases'] as unknown;
-    if (normalizeAliases(cached).includes(cleanTitle)) return;
+  private async ensureField(file: TFile): Promise<void> {
+    const match = applyRules(file.basename, this.settings.rules);
+    const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[match.targetField] as unknown;
+
+    if (match.fieldType === 'array') {
+      if (normalizeArray(cached).includes(match.cleanValue)) return;
+    } else {
+      if (cached === match.cleanValue) return;
+    }
 
     await this.app.fileManager.processFrontMatter(file, (fm: unknown) => {
-      upsertAlias(fm as Record<string, unknown>, undefined, cleanTitle);
+      const rec = fm as Record<string, unknown>;
+      if (match.fieldType === 'array') {
+        upsertArrayField(rec, match.targetField, undefined, match.cleanValue);
+      } else {
+        rec[match.targetField] = match.cleanValue;
+      }
     });
   }
 }
@@ -89,40 +108,51 @@ function pathBasenameNoExt(filePath: string): string {
   return base.endsWith('.md') ? base.slice(0, -3) : base;
 }
 
-function applyRules(basename: string, rules: readonly AliasRule[]): string {
+function applyRules(basename: string, rules: readonly FilenameRule[]): RuleMatch {
   for (const rule of rules) {
     if (!rule.stripPattern) continue;
     try {
       if (rule.matchPattern && !new RegExp(rule.matchPattern).test(basename)) continue;
       const stripped = basename.replace(new RegExp(rule.stripPattern), '').trim();
-      if (stripped.length > 0) return stripped;
+      if (stripped.length > 0) {
+        return {
+          cleanValue: stripped,
+          targetField: rule.targetField || 'aliases',
+          fieldType: rule.fieldType
+        };
+      }
     } catch {
       // invalid regex — skip this rule
     }
   }
-  return basename;
+  return { cleanValue: basename, targetField: 'aliases', fieldType: 'array' };
 }
 
-function normalizeAliases(value: unknown): string[] {
+function normalizeArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
   if (typeof value === 'string') return [value];
   return [];
 }
 
-function upsertAlias(fm: Record<string, unknown>, oldAlias: string | undefined, newAlias: string): void {
-  const aliases = normalizeAliases(fm['aliases'] as unknown);
+function upsertArrayField(
+  fm: Record<string, unknown>,
+  field: string,
+  oldValue: string | undefined,
+  newValue: string
+): void {
+  const arr = normalizeArray(fm[field] as unknown);
 
-  if (oldAlias !== undefined) {
-    const idx = aliases.indexOf(oldAlias);
+  if (oldValue !== undefined) {
+    const idx = arr.indexOf(oldValue);
     if (idx !== -1) {
-      aliases[idx] = newAlias;
-      fm['aliases'] = aliases;
+      arr[idx] = newValue;
+      fm[field] = arr;
       return;
     }
   }
 
-  if (!aliases.includes(newAlias)) {
-    aliases.push(newAlias);
-    fm['aliases'] = aliases;
+  if (!arr.includes(newValue)) {
+    arr.push(newValue);
+    fm[field] = arr;
   }
 }

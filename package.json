@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-stateful-alias",
+  "name": "obsidian-stateful-filename",
   "version": "0.0.1",
-  "description": "Keeps a clean alias in sync with note filenames by stripping a configurable regex pattern.",
+  "description": "Derives a clean value from the filename using configurable regex rules and keeps it in sync in frontmatter.",
   "keywords": [],
   "license": "MIT",
   "author": "112345brian",
