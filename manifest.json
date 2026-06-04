@@ -1,0 +1,9 @@
+{
+  "author": "112345brian",
+  "authorUrl": "https://github.com/112345brian/",
+  "description": "Keeps a clean title alias in sync with timestamped note filenames.",
+  "id": "timestamp-alias",
+  "isDesktopOnly": false,
+  "name": "Timestamp Alias",
+  "version": "0.0.1"
+}
