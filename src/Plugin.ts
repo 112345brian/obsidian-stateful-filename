@@ -15,7 +15,15 @@ interface RuleMatch {
   fieldType: 'array' | 'value';
 }
 
+// How long (ms) to ignore modify events on a file after we write to it.
+// Covers our own processFrontMatter echo + any follow-up saves from Linter.
+const WRITE_COOLDOWN_MS = 3000;
+
 export class Plugin extends PluginBase<PluginTypes> {
+  // Tracks files we recently wrote to so modify events from our own writes
+  // (and follow-up writes by Linter) don't re-trigger us.
+  private readonly writeCooldowns = new Map<string, number>();
+
   protected override createSettingsManager(): PluginSettingsManager {
     return new PluginSettingsManager(this);
   }
@@ -47,11 +55,25 @@ export class Plugin extends PluginBase<PluginTypes> {
 
     this.registerEvent(
       this.app.vault.on('modify', (file) => {
-        if (this.settings.triggerOnSave && isMdFile(file)) {
-          debouncedSave(file as TFile);
-        }
+        if (!this.settings.triggerOnSave || !isMdFile(file)) return;
+        if (this.writeCooldowns.has(file.path)) return;
+        debouncedSave(file as TFile);
       })
     );
+  }
+
+  protected override async onunloadImpl(): Promise<void> {
+    await super.onunloadImpl();
+    for (const timer of this.writeCooldowns.values()) {
+      window.clearTimeout(timer);
+    }
+    this.writeCooldowns.clear();
+  }
+
+  private setCooldown(path: string): void {
+    const existing = this.writeCooldowns.get(path);
+    if (existing !== undefined) window.clearTimeout(existing);
+    this.writeCooldowns.set(path, window.setTimeout(() => { this.writeCooldowns.delete(path); }, WRITE_COOLDOWN_MS));
   }
 
   private async handleRename(file: TAbstractFile, oldPath: string): Promise<void> {
@@ -63,6 +85,7 @@ export class Plugin extends PluginBase<PluginTypes> {
 
     if (oldMatch.cleanValue === newMatch.cleanValue && oldMatch.targetField === newMatch.targetField) return;
 
+    this.setCooldown((file as TFile).path);
     await this.app.fileManager.processFrontMatter(file as TFile, (fm: unknown) => {
       const rec = fm as Record<string, unknown>;
       if (newMatch.fieldType === 'array') {
@@ -88,6 +111,7 @@ export class Plugin extends PluginBase<PluginTypes> {
       if (cached === match.cleanValue) return;
     }
 
+    this.setCooldown(file.path);
     await this.app.fileManager.processFrontMatter(file, (fm: unknown) => {
       const rec = fm as Record<string, unknown>;
       if (match.fieldType === 'array') {
