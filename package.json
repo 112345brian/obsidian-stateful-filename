@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-timestamp-alias",
+  "name": "obsidian-stateful-alias",
   "version": "0.0.1",
-  "description": "Keeps a clean title alias in sync with timestamped note filenames.",
+  "description": "Keeps a clean alias in sync with note filenames by stripping a configurable regex pattern.",
   "keywords": [],
   "license": "MIT",
   "author": "112345brian",

@@ -1,5 +1,5 @@
 export class PluginSettings {
-  public timestampFormat = 'YYYY-MM-DD';
+  public stripPattern = '^\\d{4}-\\d{2}-\\d{2}\\s*';
   public triggerOnRename = true;
   public triggerOnOpen = false;
   public triggerOnSave = false;

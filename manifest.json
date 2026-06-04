@@ -1,9 +1,9 @@
 {
   "author": "112345brian",
   "authorUrl": "https://github.com/112345brian/",
-  "description": "Keeps a clean title alias in sync with timestamped note filenames.",
-  "id": "timestamp-alias",
+  "description": "Keeps a clean alias in sync with note filenames by stripping a configurable regex pattern.",
+  "id": "stateful-alias",
   "isDesktopOnly": false,
-  "name": "Timestamp Alias",
+  "name": "Stateful Alias",
   "version": "0.0.1"
 }
