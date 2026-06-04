@@ -118,8 +118,8 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
               .setValue(rule.stripFormat)
               .onChange((value) => {
                 (rules[i] as FilenameRule).stripFormat = value;
-                void this.plugin.settingsManager.saveToFile();
               });
+            mf.inputEl.addEventListener('blur', () => { void this.plugin.settingsManager.saveToFile(); });
           });
       } else {
         new Setting(this.containerEl)
@@ -130,18 +130,18 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
               .setValue(rule.matchPattern)
               .onChange((value) => {
                 (rules[i] as FilenameRule).matchPattern = value;
-                void this.plugin.settingsManager.saveToFile();
               });
             text.inputEl.style.width = '13em';
+            text.inputEl.addEventListener('blur', () => { void this.plugin.settingsManager.saveToFile(); });
           })
           .addText((text) => {
             text.setPlaceholder('Strip regex')
               .setValue(rule.stripPattern)
               .onChange((value) => {
                 (rules[i] as FilenameRule).stripPattern = value;
-                void this.plugin.settingsManager.saveToFile();
               });
             text.inputEl.style.width = '13em';
+            text.inputEl.addEventListener('blur', () => { void this.plugin.settingsManager.saveToFile(); });
           });
       }
 
@@ -153,9 +153,9 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
             .setValue(rule.targetField)
             .onChange((value) => {
               (rules[i] as FilenameRule).targetField = value;
-              void this.plugin.settingsManager.saveToFile();
             });
           text.inputEl.style.width = '13em';
+          text.inputEl.addEventListener('blur', () => { void this.plugin.settingsManager.saveToFile(); });
         })
         .addDropdown((dd) => {
           dd.addOption('array', 'array (upsert)')

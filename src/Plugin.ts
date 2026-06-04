@@ -85,13 +85,14 @@ export class Plugin extends PluginBase<PluginTypes> {
     const oldMatch = applyRules(pathBasenameNoExt(oldPath), rules);
     const newMatch = applyRules((file as TFile).basename, rules);
 
-    if (oldMatch.cleanValue === newMatch.cleanValue && oldMatch.targetField === newMatch.targetField) return;
+    if (!newMatch) return;
+    if (oldMatch?.cleanValue === newMatch.cleanValue && oldMatch.targetField === newMatch.targetField) return;
 
     this.setCooldown((file as TFile).path);
     await this.app.fileManager.processFrontMatter(file as TFile, (fm: unknown) => {
       const rec = fm as Record<string, unknown>;
       if (newMatch.fieldType === 'array') {
-        upsertArrayField(rec, newMatch.targetField, oldMatch.cleanValue, newMatch.cleanValue);
+        upsertArrayField(rec, newMatch.targetField, oldMatch?.cleanValue, newMatch.cleanValue);
       } else {
         rec[newMatch.targetField] = newMatch.cleanValue;
       }
@@ -105,6 +106,7 @@ export class Plugin extends PluginBase<PluginTypes> {
 
   private async ensureField(file: TFile): Promise<void> {
     const match = applyRules(file.basename, this.settings.rules);
+    if (!match) return;
     const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[match.targetField] as unknown;
 
     if (match.fieldType === 'array') {
@@ -139,7 +141,7 @@ function pathBasenameNoExt(filePath: string): string {
   return base.endsWith('.md') ? base.slice(0, -3) : base;
 }
 
-function applyRules(basename: string, rules: readonly FilenameRule[]): RuleMatch {
+function applyRules(basename: string, rules: readonly FilenameRule[]): RuleMatch | null {
   for (const rule of rules) {
     const hasPattern = rule.mode === 'simple' ? !!rule.stripFormat : !!rule.stripPattern;
     if (!hasPattern) continue;
@@ -153,7 +155,7 @@ function applyRules(basename: string, rules: readonly FilenameRule[]): RuleMatch
       };
     }
   }
-  return { cleanValue: basename, targetField: 'aliases', fieldType: 'array' };
+  return null;
 }
 
 function normalizeArray(value: unknown): string[] {
