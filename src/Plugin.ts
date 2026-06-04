@@ -1,4 +1,4 @@
-import type { TAbstractFile, TFile } from 'obsidian';
+import type { App, TAbstractFile, TFile } from 'obsidian';
 
 import { debounce } from 'obsidian';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-base';
@@ -58,6 +58,7 @@ export class Plugin extends PluginBase<PluginTypes> {
       this.app.vault.on('modify', (file) => {
         if (!this.settings.triggerOnSave || !isMdFile(file)) return;
         if (this.writeCooldowns.has(file.path)) return;
+        if (isLinterLintOnSaveActive(this.app)) return;
         debouncedSave(file as TFile);
       })
     );
@@ -122,6 +123,11 @@ export class Plugin extends PluginBase<PluginTypes> {
       }
     });
   }
+}
+
+function isLinterLintOnSaveActive(app: App): boolean {
+  const plugins = (app as unknown as { plugins?: { plugins?: Record<string, { settings?: { lintOnSave?: boolean } }> } }).plugins;
+  return plugins?.plugins?.['obsidian-linter']?.settings?.lintOnSave === true;
 }
 
 function isMdFile(file: TAbstractFile): boolean {

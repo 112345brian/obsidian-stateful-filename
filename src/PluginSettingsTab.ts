@@ -1,3 +1,5 @@
+import type { App } from 'obsidian';
+
 import { Setting } from 'obsidian';
 import { PluginSettingsTabBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-settings-tab-base';
 import { SettingEx } from 'obsidian-dev-utils/obsidian/setting-ex';
@@ -48,10 +50,16 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
       .setDesc('Ensure the derived value exists in frontmatter whenever a note is opened.')
       .addToggle((toggle) => { this.bind(toggle, 'triggerOnOpen'); });
 
+    const lintOnSave = isLinterLintOnSaveActive(this.plugin.app);
     new SettingEx(this.containerEl)
       .setName('Update on save')
-      .setDesc('Ensure the derived value exists whenever a note is saved (debounced 2 s). Avoid enabling if Linter\'s "Lint on save" is active.')
-      .addToggle((toggle) => { this.bind(toggle, 'triggerOnSave'); });
+      .setDesc(lintOnSave
+        ? 'Disabled — Linter\'s "Lint on save" is active on this vault. Enabling both would cause a save loop.'
+        : 'Ensure the derived value exists whenever a note is saved (debounced 2 s).')
+      .addToggle((toggle) => {
+        this.bind(toggle, 'triggerOnSave');
+        toggle.setDisabled(lintOnSave);
+      });
   }
 
   private renderRules(): void {
@@ -205,4 +213,9 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
 
     testInput.addEventListener('input', update);
   }
+}
+
+function isLinterLintOnSaveActive(app: App): boolean {
+  const plugins = (app as unknown as { plugins?: { plugins?: Record<string, { settings?: { lintOnSave?: boolean } }> } }).plugins;
+  return plugins?.plugins?.['obsidian-linter']?.settings?.lintOnSave === true;
 }
