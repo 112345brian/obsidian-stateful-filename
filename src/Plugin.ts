@@ -4,6 +4,7 @@ import { debounce } from 'obsidian';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-base';
 
 import type { PluginTypes } from './PluginTypes.ts';
+import type { AliasRule } from './PluginSettings.ts';
 
 import { PluginSettingsManager } from './PluginSettingsManager.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
@@ -50,11 +51,11 @@ export class Plugin extends PluginBase<PluginTypes> {
   private async handleRename(file: TAbstractFile, oldPath: string): Promise<void> {
     if (!this.settings.triggerOnRename || !isMdFile(file)) return;
 
-    const pattern = this.settings.stripPattern;
+    const rules = this.settings.rules;
     const oldBasename = pathBasenameNoExt(oldPath);
     const newBasename = (file as TFile).basename;
-    const oldCleanTitle = applyStripPattern(oldBasename, pattern);
-    const newCleanTitle = applyStripPattern(newBasename, pattern);
+    const oldCleanTitle = applyRules(oldBasename, rules);
+    const newCleanTitle = applyRules(newBasename, rules);
 
     if (oldCleanTitle === newCleanTitle) return;
 
@@ -69,7 +70,7 @@ export class Plugin extends PluginBase<PluginTypes> {
   }
 
   private async ensureAlias(file: TFile): Promise<void> {
-    const cleanTitle = applyStripPattern(file.basename, this.settings.stripPattern);
+    const cleanTitle = applyRules(file.basename, this.settings.rules);
     const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.['aliases'] as unknown;
     if (normalizeAliases(cached).includes(cleanTitle)) return;
 
@@ -88,14 +89,18 @@ function pathBasenameNoExt(filePath: string): string {
   return base.endsWith('.md') ? base.slice(0, -3) : base;
 }
 
-function applyStripPattern(basename: string, pattern: string): string {
-  if (!pattern) return basename;
-  try {
-    const stripped = basename.replace(new RegExp(pattern), '').trim();
-    return stripped.length > 0 ? stripped : basename;
-  } catch {
-    return basename;
+function applyRules(basename: string, rules: readonly AliasRule[]): string {
+  for (const rule of rules) {
+    if (!rule.stripPattern) continue;
+    try {
+      if (rule.matchPattern && !new RegExp(rule.matchPattern).test(basename)) continue;
+      const stripped = basename.replace(new RegExp(rule.stripPattern), '').trim();
+      if (stripped.length > 0) return stripped;
+    } catch {
+      // invalid regex — skip this rule
+    }
   }
+  return basename;
 }
 
 function normalizeAliases(value: unknown): string[] {
