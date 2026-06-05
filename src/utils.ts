@@ -40,6 +40,18 @@ export function momentFormatToRegex(format: string): RegExp {
   return new RegExp(`^${pattern}\\s*`);
 }
 
+export function buildStripRegex(
+  mode: 'simple' | 'advanced',
+  stripFormat: string,
+  stripPattern: string
+): RegExp | null {
+  try {
+    return mode === 'simple' ? momentFormatToRegex(stripFormat) : new RegExp(stripPattern);
+  } catch {
+    return null;
+  }
+}
+
 export function applyStrip(
   basename: string,
   mode: 'simple' | 'advanced',
