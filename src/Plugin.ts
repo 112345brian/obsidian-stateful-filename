@@ -1,6 +1,6 @@
 import type { App, TAbstractFile, TFile } from 'obsidian';
 
-import { debounce } from 'obsidian';
+import { Notice, debounce } from 'obsidian';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin-base';
 
 import type { FilenameRule } from './PluginSettings.ts';
@@ -33,8 +33,43 @@ export class Plugin extends PluginBase<PluginTypes> {
     return new PluginSettingsTab(this);
   }
 
+  public async crawlVault(): Promise<{ processed: number; updated: number }> {
+    const files = this.app.vault.getMarkdownFiles();
+    let updated = 0;
+    for (const file of files) {
+      const match = applyRules(file.basename, this.settings.rules);
+      if (!match) continue;
+      const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[match.targetField] as unknown;
+      const needsUpdate = match.fieldType === 'array'
+        ? !normalizeArray(cached).includes(match.cleanValue)
+        : cached !== match.cleanValue;
+      if (!needsUpdate) continue;
+      this.setCooldown(file.path);
+      await this.app.fileManager.processFrontMatter(file, (fm: unknown) => {
+        const rec = fm as Record<string, unknown>;
+        if (match.fieldType === 'array') {
+          upsertArrayField(rec, match.targetField, undefined, match.cleanValue);
+        } else {
+          rec[match.targetField] = match.cleanValue;
+        }
+      });
+      updated++;
+    }
+    return { processed: files.length, updated };
+  }
+
   protected override async onloadImpl(): Promise<void> {
     await super.onloadImpl();
+
+    this.addCommand({
+      callback: () => {
+        void this.crawlVault().then(({ processed, updated }) => {
+          new Notice(`Stateful Filename: updated ${String(updated)} of ${String(processed)} notes.`);
+        });
+      },
+      id: 'crawl-vault',
+      name: 'Update all notes'
+    });
 
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {

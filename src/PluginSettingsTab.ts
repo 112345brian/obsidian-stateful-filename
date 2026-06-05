@@ -60,6 +60,24 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
         this.bind(toggle, 'triggerOnSave');
         toggle.setDisabled(lintOnSave);
       });
+
+    this.containerEl.createEl('h3', { text: 'Vault scan' });
+    new Setting(this.containerEl)
+      .setName('Update all notes')
+      .setDesc('Crawl the entire vault and upsert the derived value for every matching note. Safe to run multiple times.')
+      .addButton((btn) => {
+        btn.setButtonText('Run now').onClick(() => {
+          btn.setDisabled(true);
+          btn.setButtonText('Running…');
+          void this.plugin.crawlVault().then(({ processed, updated }) => {
+            btn.setButtonText(`Done — ${String(updated)} / ${String(processed)} updated`);
+            window.setTimeout(() => {
+              btn.setDisabled(false);
+              btn.setButtonText('Run now');
+            }, 3000);
+          });
+        });
+      });
   }
 
   private renderRules(): void {
