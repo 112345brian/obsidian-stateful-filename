@@ -64,7 +64,12 @@ export class PluginSettingsTab extends PluginSettingsTabBase<PluginTypes> {
     this.containerEl.createEl('h3', { text: 'Vault scan' });
     new Setting(this.containerEl)
       .setName('Update all notes')
-      .setDesc('Crawl the entire vault and upsert the derived value for every matching note. Safe to run multiple times.')
+      .setDesc('Preview shows every proposed change with individual approve/deny. Run now applies all changes immediately.')
+      .addButton((btn) => {
+        btn.setButtonText('Preview changes').onClick(() => {
+          this.plugin.openDryRunModal();
+        });
+      })
       .addButton((btn) => {
         btn.setButtonText('Run now').onClick(() => {
           btn.setDisabled(true);

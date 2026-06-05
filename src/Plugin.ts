@@ -8,12 +8,22 @@ import type { PluginTypes } from './PluginTypes.ts';
 
 import { PluginSettingsManager } from './PluginSettingsManager.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
+import { VaultScanModal } from './VaultScanModal.ts';
 import { applyStrip, testMatch } from './utils.ts';
 
 interface RuleMatch {
   cleanValue: string;
   targetField: string;
   fieldType: 'array' | 'value';
+}
+
+export interface ProposedChange {
+  file: TFile;
+  targetField: string;
+  fieldType: 'array' | 'value';
+  cleanValue: string;
+  /** Current values already in the field (normalized to string[]). */
+  currentValues: string[];
 }
 
 // How long (ms) to ignore modify events on a file after we write to it.
@@ -33,33 +43,73 @@ export class Plugin extends PluginBase<PluginTypes> {
     return new PluginSettingsTab(this);
   }
 
-  public async crawlVault(): Promise<{ processed: number; updated: number }> {
-    const files = this.app.vault.getMarkdownFiles();
-    let updated = 0;
-    for (const file of files) {
+  /** Collect all proposed changes without writing anything. */
+  public dryRunVault(): ProposedChange[] {
+    const changes: ProposedChange[] = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
       const match = applyRules(file.basename, this.settings.rules);
       if (!match) continue;
       const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[match.targetField] as unknown;
+      const currentValues = normalizeArray(cached);
       const needsUpdate = match.fieldType === 'array'
-        ? !normalizeArray(cached).includes(match.cleanValue)
-        : cached !== match.cleanValue;
+        ? !currentValues.includes(match.cleanValue)
+        : (cached !== match.cleanValue);
       if (!needsUpdate) continue;
-      this.setCooldown(file.path);
-      await this.app.fileManager.processFrontMatter(file, (fm: unknown) => {
+      changes.push({
+        file,
+        targetField: match.targetField,
+        fieldType: match.fieldType,
+        cleanValue: match.cleanValue,
+        currentValues: match.fieldType === 'value' && typeof cached === 'string' ? [cached] : currentValues
+      });
+    }
+    return changes;
+  }
+
+  /** Write a specific set of proposed changes (from dry-run or direct crawl). */
+  public async applyChanges(changes: ProposedChange[]): Promise<void> {
+    for (const change of changes) {
+      this.setCooldown(change.file.path);
+      await this.app.fileManager.processFrontMatter(change.file, (fm: unknown) => {
         const rec = fm as Record<string, unknown>;
-        if (match.fieldType === 'array') {
-          upsertArrayField(rec, match.targetField, undefined, match.cleanValue);
+        if (change.fieldType === 'array') {
+          upsertArrayField(rec, change.targetField, undefined, change.cleanValue);
         } else {
-          rec[match.targetField] = match.cleanValue;
+          rec[change.targetField] = change.cleanValue;
         }
       });
-      updated++;
     }
-    return { processed: files.length, updated };
+  }
+
+  /** Collect changes, show the review modal, apply approved ones. */
+  public openDryRunModal(): void {
+    const changes = this.dryRunVault();
+    if (changes.length === 0) {
+      new Notice('Stateful Filename: vault is already up to date.');
+      return;
+    }
+    new VaultScanModal(this.app, changes, async (approved) => {
+      await this.applyChanges(approved);
+      new Notice(`Stateful Filename: applied ${String(approved.length)} of ${String(changes.length)} changes.`);
+    }).open();
+  }
+
+  /** Crawl and apply all changes immediately (no review). */
+  public async crawlVault(): Promise<{ processed: number; updated: number }> {
+    const processed = this.app.vault.getMarkdownFiles().length;
+    const changes = this.dryRunVault();
+    await this.applyChanges(changes);
+    return { processed, updated: changes.length };
   }
 
   protected override async onloadImpl(): Promise<void> {
     await super.onloadImpl();
+
+    this.addCommand({
+      callback: () => { this.openDryRunModal(); },
+      id: 'dry-run-vault',
+      name: 'Preview changes for all notes'
+    });
 
     this.addCommand({
       callback: () => {
