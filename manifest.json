@@ -4,6 +4,7 @@
   "description": "Derives a clean value from the filename using configurable regex rules and keeps it in sync in frontmatter.",
   "id": "stateful-filename",
   "isDesktopOnly": false,
+  "minAppVersion": "1.13.0",
   "name": "Stateful Filename",
-  "version": "1.0.3"
+  "version": "1.0.4"
 }
